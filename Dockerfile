@@ -122,24 +122,25 @@ FROM --platform=linux/riscv64 cartesi/python:3.10-slim-jammy as base
 
 ARG CARTESI_SDK_RIV_VERSION
 
-LABEL io.cartesi.sdk_version=${CARTESI_SDK_RIV_VERSION}
+LABEL io.cartesi.rollups.sdk_version=devel
+LABEL io.cartesi.rollups.sdk_name=zippiehq/cartesi-lambada-sdk
 LABEL io.cartesi.rollups.ram_size=128Mi
 LABEL io.cartesi.rollups.data_size=32Mb
 LABEL io.cartesi.rollups.flashdrive_size=128Mb
 
-# Install tools
-ARG MACHINE_EMULATOR_TOOLS_VERSION
-ADD https://github.com/cartesi/machine-emulator-tools/releases/download/v${MACHINE_EMULATOR_TOOLS_VERSION}/machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb /
-RUN dpkg -i /machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb \
-  && rm /machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb
-
+ARG DEBIAN_FRONTEND=noninteractive
 RUN <<EOF
-apt-get update && \
-apt-get install -y --no-install-recommends busybox-static=1:1.30.1-7ubuntu3 \
-    build-essential=12.9ubuntu3 sqlite3=3.37.2-2ubuntu0.3 git=1:2.34.1-1ubuntu1.11 squashfs-tools=1:4.5-3build1 && \
-rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/* && \
+set -e
+apt-get update
+apt-get install -y --no-install-recommends \
+   busybox-static=1:1.30.1-7ubuntu3 build-essential=12.9ubuntu3 sqlite3=3.37.2-2ubuntu0.3 git=1:2.34.1-1ubuntu1.11 squashfs-tools=1:4.5-3build1 && \
+rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/*
 useradd --create-home --user-group dapp
 EOF
+ARG MACHINE_EMULATOR_TOOLS_VERSION=0.15.7
+ADD https://github.com/zippiehq/cartesi-lambada-guest-tools/releases/download/v${MACHINE_EMULATOR_TOOLS_VERSION}/machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb /
+RUN dpkg -i /machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb \
+  && rm /machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb
 
 ENV PATH="/opt/cartesi/bin:${PATH}"
 
@@ -182,7 +183,12 @@ ARG OPERATOR_ADDRESS
 ENV OPERATOR_ADDRESS=${OPERATOR_ADDRESS}
 ENV ROLLUP_HTTP_SERVER_URL="http://127.0.0.1:5004"
 
+RUN echo USER=root > /etc/cartesi-init.d/run-as-root
+
 FROM base as dapp
 
+ENV ROLLUP_HTTP_SERVER_URL="http://127.0.0.1:5004"
+ENV LAMBADA_HTTP_SERVER_URL="http://127.0.0.1:5005"
+
 ENTRYPOINT ["rollup-init"]
-CMD ["cartesapp","run","--log-level","info"]
+CMD ["lambada-http-server", "lambada-init", "cartesapp","run","--log-level","info"]
